@@ -39,17 +39,27 @@ calculate_ic_factory <- function(method = "ssa", L = NULL, r_range = 0:10) {
             if (!is.null(L)) {
                 call_pars$L <- L
             }
+            N_bias <- 0
             ssaobj <- do.call("ssa", call_pars)
             sigmas <- ssaobj$sigma
             L_real <- length(ssaobj$U[, 1])
-            K <- length(series) - L_real + 1
+
+            if (any(is.na(series))) {
+              full_N <- length(series)
+              full_K <- full_N - L_real + 1
+              actual_K <- length(ssaobj$V[, 1])
+              N_bias <- full_K - actual_K
+            }
+
+            N <- length(series) - N_bias
+            K <- N - L_real + 1
 
             ics <- sapply(r_range, function(r) {
                 if (r == 0) {
                     answer <- eval_ic(sigmas, 0, 0, n_mean = L_real * K,
-                                      n = length(series))
+                                      n = N)
                     if (!is.null(signal)) {
-                        answer$signal_dist <- mean(signal^2)
+                        answer$signal_dist <- mean(signal^2, na.rm = TRUE)
                     }
                     return(answer)
                 }
@@ -58,10 +68,10 @@ calculate_ic_factory <- function(method = "ssa", L = NULL, r_range = 0:10) {
                 pseudo_noise[1:r] <- 0
 
                 answer <- eval_ic(pseudo_noise, r,
-                                  length(series) * (r * (L_real + K) - r^2) / (L_real * K),
-                                  n_mean = L_real * K, n = length(series))
+                                  N * (r * (L_real + K) - r^2) / (L_real * K),
+                                  n_mean = L_real * K, n = N)
                 if (!is.null(signal)) {
-                    answer$signal_dist <- mean((signal - reconstruct(ssaobj, list(1:r))[[1]])^2)
+                    answer$signal_dist <- mean((signal - reconstruct(ssaobj, list(1:r))[[1]])^2, na.rm = TRUE)
                 }
                 answer
             })
